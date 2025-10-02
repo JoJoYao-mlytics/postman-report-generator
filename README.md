@@ -57,15 +57,21 @@ Postman Report/
 確保您有 Postman 測試執行後的 JSON 結果檔案。
 
 ### 2. 執行生成腳本
+以命令列參數帶入 Postman 測試 JSON 檔路徑：
 ```bash
-python3 generate_report.py
+python3 generate_report.py "/absolute/path/to/postman_test_results.json"
+```
+也可搭配相對路徑（相對於本資料夾）：
+```bash
+python3 generate_report.py ../some-folder/postman_test_results.json
 ```
 
-### 3. 配置輸入檔案
-修改 `generate_report.py` 中的檔案路徑：
-```python
-json_file = '/path/to/your/postman_test_results.json'
-```
+### 3. 輸出檔名與路徑
+- 檔名：`{name} - {YYYY-MM-DD}.html`
+  - `name` 與 `startedAt` 來源於提供的 JSON 檔。
+  - 會自動清理檔名中的非法字元以確保跨平台安全。
+- 產出路徑：專案根目錄（與 `Postman Report/` 同層）。
+  - 例如本專案為：`/Users/jojo.yao/Project/BMad/`
 
 ### 4. 查看報告
 生成的 HTML 檔案可直接在瀏覽器中開啟，支援所有現代瀏覽器。
@@ -74,7 +80,7 @@ json_file = '/path/to/your/postman_test_results.json'
 
 ### 相依性
 - **Python 3.x**
-- **標準庫**：`json`, `os`
+- **標準庫**：`json`, `os`, `argparse`, `datetime`
 - **無外部相依**：純 Python 標準庫實作
 
 ### 支援的瀏覽器

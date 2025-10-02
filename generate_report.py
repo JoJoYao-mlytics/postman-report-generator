@@ -3,21 +3,47 @@
 
 import json
 import os
+from datetime import datetime
+import argparse
 
-def generate_html_report():
+def generate_html_report(json_file):
     """生成包含完整 JSON 數據的 HTML 報告"""
     
     # 讀取 JSON 數據
-    json_file = '/Users/jojo.yao/Project/BMad/Open API.postman_test_run.json'
     with open(json_file, 'r', encoding='utf-8') as f:
         test_data = json.load(f)
+    
+    # 構建 Method 對照並補入每筆結果 (以 _method 欄位提供給前端使用)
+    try:
+        requests = (test_data.get('collection') or {}).get('requests') or []
+        method_map = {req.get('id'): req.get('method') for req in requests if isinstance(req, dict)}
+        for r in (test_data.get('results') or []):
+            if isinstance(r, dict):
+                if not r.get('_method'):
+                    m = method_map.get(r.get('id'))
+                    if m:
+                        r['_method'] = m
+    except Exception:
+        pass
+    
+    # 產生標題：name + startedAt(YYYY-MM-DD)
+    name = test_data.get('name') or '未命名'
+    started_at = test_data.get('startedAt')
+    date_str = '—'
+    try:
+        if started_at:
+            dt = datetime.fromisoformat(started_at.replace('Z', '+00:00'))
+            date_str = dt.strftime('%Y-%m-%d')
+    except Exception:
+        pass
+    report_title = f"{name} - {date_str}"
     
     # HTML 模板
     html_template = '''<!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8" />
-  <title>Postman 測試報告</title>
+  <title>REPORT_TITLE_PLACEHOLDER</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     :root {
@@ -378,7 +404,7 @@ def generate_html_report():
   <div class="container">
     <header>
       <div>
-        <h1>Postman 測試報告</h1>
+        <h1>REPORT_TITLE_PLACEHOLDER</h1>
         <div class="meta-line" id="runMeta"></div>
         <div class="legend">
           <span><strong style="color:#6ee7b7">2xx</strong> 成功</span>
@@ -757,9 +783,25 @@ try {{
     # 將 JSON 數據轉換為 JavaScript 格式並插入模板
     json_str = json.dumps(test_data, ensure_ascii=False, indent=2)
     html_content = html_template.replace('{json_data_placeholder}', json_str)
+    # 修正模板中的 JavaScript 大括號：將用於避開 Python 格式化的 '{{' / '}}' 轉回標準的 '{' / '}'
+    # 這些重寫僅影響模板中的 JS 區塊；嵌入的 JSON 資料本身僅含單一大括號，不會被更動。
+    html_content = (html_content
+                    .replace('${{', '${')
+                    .replace('}}', '}')
+                    .replace('{{', '{'))
+    # 套用動態標題
+    html_content = html_content.replace('REPORT_TITLE_PLACEHOLDER', report_title)
     
-    # 寫入最終的 HTML 文件
-    output_file = '/Users/jojo.yao/Project/BMad/Postman_測試報告_完整版.html'
+    # 寫入最終的 HTML 文件（輸出檔名：name + startedAt(YYYY-MM-DD).html）
+    def _sanitize_filename(s):
+        allow = set(" -_().")
+        return ''.join(ch if (ch.isalnum() or ch in allow) else '_' for ch in s).strip(' ._') or 'report'
+
+    safe_name = _sanitize_filename(name)
+    safe_date = _sanitize_filename(date_str)
+    file_name = f"{safe_name} - {safe_date}.html"
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+    output_file = os.path.join(base_dir, file_name)
     with open(output_file, 'w', encoding='utf-8') as f:
         f.write(html_content)
     
@@ -768,4 +810,7 @@ try {{
     print(f"🎯 測試通過率：{test_data['totalPass']}/{test_data['totalPass'] + test_data['totalFail']} (100%)")
 
 if __name__ == '__main__':
-    generate_html_report()
+    parser = argparse.ArgumentParser(description='Generate Postman HTML report from a Postman test run JSON file')
+    parser.add_argument('json_file', help='Path to the Postman test run JSON file')
+    args = parser.parse_args()
+    generate_html_report(args.json_file)
